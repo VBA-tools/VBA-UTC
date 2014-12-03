@@ -6,7 +6,7 @@ Tested in Windows Excel 2013 and Excel for Mac 2011, but should apply to 2007+.
 
 # Example
 
-```VB
+```VB.net
 ' Timezone: EST (UTC-5:00), DST: True (+1:00) -> UTC-4:00
 Dim LocalDate As Date
 Dim UTCDate As Date
