@@ -30,7 +30,6 @@ Public utc_Override As Boolean
 ' -------------------------------------- '
 Public Function ParseUtc(utc_UtcDate As Date) As Date
     utc_LoadUtcOffsetAndDst
-    
     ParseUtc = utc_UtcDate + VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0) + VBA.IIf(utc_Dst, VBA.TimeSerial(1, 0, 0), 0)
 End Function
 
@@ -42,7 +41,6 @@ End Function
 ' -------------------------------------- '
 Public Function ConvertToUtc(utc_LocalDate As Date) As Date
      utc_LoadUtcOffsetAndDst
-     
      ConvertToUtc = utc_LocalDate - VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0) - VBA.IIf(utc_Dst, VBA.TimeSerial(1, 0, 0), 0)
 End Function
 
@@ -67,14 +65,7 @@ Public Function ParseIso(utc_IsoString As String) As Date
     
     utc_Parts = VBA.Split(utc_IsoString, "T")
     utc_DateParts = VBA.Split(utc_Parts(0), "-")
-    Select Case UBound(utc_DateParts)
-    Case 0
-        ParseIso = VBA.DateSerial(VBA.CInt(utc_DateParts(0)), 1, 1)
-    Case 1
-        ParseIso = VBA.DateSerial(VBA.CInt(utc_DateParts(0)), VBA.CInt(utc_DateParts(1)), 1)
-    Case 2
-        ParseIso = VBA.DateSerial(VBA.CInt(utc_DateParts(0)), VBA.CInt(utc_DateParts(1)), VBA.CInt(utc_DateParts(2)))
-    End Select
+    ParseIso = VBA.DateSerial(VBA.CInt(utc_DateParts(0)), VBA.CInt(utc_DateParts(1)), VBA.CInt(utc_DateParts(2)))
     
     If UBound(utc_Parts) > 0 Then
         If VBA.InStr(utc_Parts(1), "Z") Then
@@ -138,7 +129,6 @@ End Function
 ' -------------------------------------- '
 Public Function ConvertToIso(utc_LocalDate As Date) As String
     utc_LoadUtcOffsetAndDst
-    
     ConvertToIso = VBA.Format$(ConvertToUtc(utc_LocalDate), "yyyy-mm-ddTHH:mm:ss.000Z")
 End Function
 
