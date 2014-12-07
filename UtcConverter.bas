@@ -1,19 +1,34 @@
 Attribute VB_Name = "UtcConverter"
 ''
-' VBA-UTC v0.5.0
+' VBA-UTC v1.0.0-rc.1
 ' (c) Tim Hall - https://github.com/VBA-tools/VBA-UtcConverter
 '
 ' UTC/ISO 8601 Converter for VBA
 '
 ' Errors:
-' 10011 - ISO 8601 parse error
+' 10011 - UTC parsing error
+' 10012 - UTC conversion error
+' 10013 - ISO 8601 parsing error
+' 10014 - ISO 8601 conversion error
 '
 ' @author: tim.hall.engr@gmail.com
 ' @license: MIT (http://www.opensource.org/licenses/mit-license.php
 ' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ '
 
 #If Mac Then
+
+Private Declare Function utc_popen Lib "libc.dylib" Alias "popen" (ByVal utc_command As String, ByVal utc_mode As String) As Long
+Private Declare Function utc_pclose Lib "libc.dylib" Alias "pclose" (ByVal utc_file As Long) As Long
+Private Declare Function utc_fread Lib "libc.dylib" Alias "fread" (ByVal utc_buffer As String, ByVal utc_size As Long, ByVal utc_number As Long, ByVal utc_file As Long) As Long
+Private Declare Function utc_feof Lib "libc.dylib" Alias "feof" (ByVal utc_file As Long) As Long
+
+Private Type utc_ShellResult
+    utc_Output As String
+    utc_ExitCode As Long
+End Type
+
 #Else
+
 ' http://msdn.microsoft.com/en-us/library/windows/desktop/ms724421.aspx
 ' http://msdn.microsoft.com/en-us/library/windows/desktop/ms724949.aspx
 ' http://msdn.microsoft.com/en-us/library/windows/desktop/ms725485.aspx
@@ -25,25 +40,26 @@ Private Declare Function utc_TzSpecificLocalTimeToSystemTime Lib "kernel32" Alia
     (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION, utc_lpLocalTime As utc_SYSTEMTIME, utc_lpUniversalTime As utc_SYSTEMTIME) As Long
 
 Private Type utc_SYSTEMTIME
-    utc_A_wYear As Integer
-    utc_B_wMonth As Integer
-    utc_C_wDayOfWeek As Integer
-    utc_D_wDay As Integer
-    utc_E_wHour As Integer
-    utc_F_wMinute As Integer
-    utc_G_wSecond As Integer
-    utc_H_wMilliseconds As Integer
+    utc_wYear As Integer
+    utc_wMonth As Integer
+    utc_wDayOfWeek As Integer
+    utc_wDay As Integer
+    utc_wHour As Integer
+    utc_wMinute As Integer
+    utc_wSecond As Integer
+    utc_wMilliseconds As Integer
 End Type
 
 Private Type utc_TIME_ZONE_INFORMATION
-    utc_A_Bias As Long
-    utc_B_StandardName(0 To 31) As Integer
-    utc_C_StandardDate As utc_SYSTEMTIME
-    utc_D_StandardBias As Long
-    utc_E_DaylightName(0 To 31) As Integer
-    utc_F_DaylightDate As utc_SYSTEMTIME
-    utc_G_DaylightBias As Long
+    utc_Bias As Long
+    utc_StandardName(0 To 31) As Integer
+    utc_StandardDate As utc_SYSTEMTIME
+    utc_StandardBias As Long
+    utc_DaylightName(0 To 31) As Integer
+    utc_DaylightDate As utc_SYSTEMTIME
+    utc_DaylightBias As Long
 End Type
+
 #End If
 
 ' ============================================= '
@@ -57,17 +73,24 @@ End Type
 ' @return {Date} Local date
 ' -------------------------------------- '
 Public Function ParseUtc(utc_UtcDate As Date) As Date
+    On Error GoTo ErrorHandling
+    
 #If Mac Then
-    ' TODO
+    ParseUtc = utc_ConvertDate(utc_UtcDate)
 #Else
     Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
     Dim utc_LocalDate As utc_SYSTEMTIME
     
     utc_GetTimeZoneInformation utc_TimeZoneInfo
-    utc_SystemTimeToTzSpecificLocalTime utc_TimeZoneInfo, DateToSystemTime(utc_UtcDate), utc_LocalDate
+    utc_SystemTimeToTzSpecificLocalTime utc_TimeZoneInfo, utc_DateToSystemTime(utc_UtcDate), utc_LocalDate
     
-    ParseUtc = SystemTimeToDate(utc_LocalDate)
+    ParseUtc = utc_SystemTimeToDate(utc_LocalDate)
 #End If
+
+    Exit Function
+
+ErrorHandling:
+    Err.Raise 10011, "UtcConverter.ParseUtc", "UTC parsing error: " & Err.Number & " - " & Err.Description
 End Function
 
 ''
@@ -77,17 +100,24 @@ End Function
 ' @return {Date} UTC date
 ' -------------------------------------- '
 Public Function ConvertToUtc(utc_LocalDate As Date) As Date
+    On Error GoTo ErrorHandling
+    
 #If Mac Then
-    ' TODO
+    ConvertToUtc = utc_ConvertDate(utc_LocalDate, utc_ConvertToUtc:=True)
 #Else
     Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
     Dim utc_UtcDate As utc_SYSTEMTIME
     
     utc_GetTimeZoneInformation utc_TimeZoneInfo
-    utc_TzSpecificLocalTimeToSystemTime utc_TimeZoneInfo, DateToSystemTime(utc_LocalDate), utc_UtcDate
+    utc_TzSpecificLocalTimeToSystemTime utc_TimeZoneInfo, utc_DateToSystemTime(utc_LocalDate), utc_UtcDate
     
-    ConvertToUtc = SystemTimeToDate(utc_UtcDate)
+    ConvertToUtc = utc_SystemTimeToDate(utc_UtcDate)
 #End If
+    
+    Exit Function
+    
+ErrorHandling:
+    Err.Raise 10012, "UtcConverter.ConvertToUtc", "UTC conversion error: " & Err.Number & " - " & Err.Description
 End Function
 
 ''
@@ -161,8 +191,7 @@ Public Function ParseIso(utc_IsoString As String) As Date
     Exit Function
     
 ErrorHandling:
-    
-    Err.Raise 10011, "UtcConverter.ParseIso", "ISO 8601 parse error for " & utc_IsoString
+    Err.Raise 10013, "UtcConverter.ParseIso", "ISO 8601 parsing error for " & utc_IsoString & ": " & Err.Number & " - " & Err.Description
 End Function
 
 ''
@@ -172,7 +201,14 @@ End Function
 ' @return {Date} ISO 8601 string
 ' -------------------------------------- '
 Public Function ConvertToIso(utc_LocalDate As Date) As String
+    On Error GoTo ErrorHandling
+    
     ConvertToIso = VBA.Format$(ConvertToUtc(utc_LocalDate), "yyyy-mm-ddTHH:mm:ss.000Z")
+    
+    Exit Function
+    
+ErrorHandling:
+    Err.Raise 10014, "UtcConverter.ConvertToIso", "ISO 8601 conversion error: " & Err.Number & " - " & Err.Description
 End Function
 
 ' ============================================= '
@@ -180,19 +216,71 @@ End Function
 ' ============================================= '
 
 #If Mac Then
+Private Function utc_ConvertDate(utc_Value As Date, Optional utc_ConvertToUtc As Boolean = False) As Date
+    Dim utc_ShellCommand As String
+    Dim utc_Result As utc_ShellResult
+    Dim utc_Parts() As String
+    Dim utc_DateParts() As String
+    Dim utc_TimeParts() As String
+    
+    If utc_ConvertToUtc Then
+        utc_ShellCommand = "date -ur `date -jf '%Y-%m-%d %H:%M:%S' " & _
+            "'" & VBA.Format$(utc_Value, "yyyy-mm-dd HH:mm:ss") & "' " & _
+            " +'%s'` +'%Y-%m-%d %H:%M:%S'"
+    Else
+        utc_ShellCommand = "date -jf '%Y-%m-%d %H:%M:%S %z' " & _
+            "'" & VBA.Format$(utc_Value, "yyyy-mm-dd HH:mm:ss") & " +0000' " & _
+            "+'%Y-%m-%d %H:%M:%S'"
+    End If
+    
+    utc_Result = utc_ExecuteInShell(utc_ShellCommand)
+    
+    If utc_Result.utc_Output = "" Then
+        Err.Raise 10015, "UtcConverter.utc_ConvertDate", "'date' command failed"
+    Else
+        utc_Parts = Split(utc_Result.utc_Output, " ")
+        utc_DateParts = Split(utc_Parts(0), "-")
+        utc_TimeParts = Split(utc_Parts(1), ":")
+        
+        utc_ConvertDate = DateSerial(utc_DateParts(0), utc_DateParts(1), utc_DateParts(2)) + _
+            TimeSerial(utc_TimeParts(0), utc_TimeParts(1), utc_TimeParts(2))
+    End If
+End Function
+Private Function utc_ExecuteInShell(utc_ShellCommand As String) As utc_ShellResult
+    Dim utc_file As Long
+    Dim utc_Chunk As String
+    Dim utc_Read As Long
+    
+    On Error GoTo ErrorHandling
+    utc_file = utc_popen(utc_ShellCommand, "r")
+    
+    If utc_file = 0 Then: Exit Function
+    
+    Do While utc_feof(utc_file) = 0
+        utc_Chunk = VBA.Space$(50)
+        utc_Read = utc_fread(utc_Chunk, 1, Len(utc_Chunk) - 1, utc_file)
+        If utc_Read > 0 Then
+            utc_Chunk = VBA.Left$(utc_Chunk, utc_Read)
+            utc_ExecuteInShell.utc_Output = utc_ExecuteInShell.utc_Output & utc_Chunk
+        End If
+    Loop
+
+ErrorHandling:
+    utc_ExecuteInShell.utc_ExitCode = utc_pclose(File)
+End Function
 #Else
-Private Function DateToSystemTime(utc_Value As Date) As utc_SYSTEMTIME
-    DateToSystemTime.utc_A_wYear = VBA.Year(utc_Value)
-    DateToSystemTime.utc_B_wMonth = VBA.Month(utc_Value)
-    DateToSystemTime.utc_D_wDay = VBA.Day(utc_Value)
-    DateToSystemTime.utc_E_wHour = VBA.Hour(utc_Value)
-    DateToSystemTime.utc_F_wMinute = VBA.Minute(utc_Value)
-    DateToSystemTime.utc_G_wSecond = VBA.Second(utc_Value)
-    DateToSystemTime.utc_H_wMilliseconds = 0
+Private Function utc_DateToSystemTime(utc_Value As Date) As utc_SYSTEMTIME
+    utc_DateToSystemTime.utc_wYear = VBA.Year(utc_Value)
+    utc_DateToSystemTime.utc_wMonth = VBA.Month(utc_Value)
+    utc_DateToSystemTime.utc_wDay = VBA.Day(utc_Value)
+    utc_DateToSystemTime.utc_wHour = VBA.Hour(utc_Value)
+    utc_DateToSystemTime.utc_wMinute = VBA.Minute(utc_Value)
+    utc_DateToSystemTime.utc_wSecond = VBA.Second(utc_Value)
+    utc_DateToSystemTime.utc_wMilliseconds = 0
 End Function
 
-Private Function SystemTimeToDate(utc_Value As utc_SYSTEMTIME) As Date
-    SystemTimeToDate = DateSerial(utc_Value.utc_A_wYear, utc_Value.utc_B_wMonth, utc_Value.utc_D_wDay) + _
-        TimeSerial(utc_Value.utc_E_wHour, utc_Value.utc_F_wMinute, utc_Value.utc_G_wSecond)
+Private Function utc_SystemTimeToDate(utc_Value As utc_SYSTEMTIME) As Date
+    utc_SystemTimeToDate = DateSerial(utc_Value.utc_wYear, utc_Value.utc_wMonth, utc_Value.utc_wDay) + _
+        TimeSerial(utc_Value.utc_wHour, utc_Value.utc_wMinute, utc_Value.utc_wSecond)
 End Function
 #End If
