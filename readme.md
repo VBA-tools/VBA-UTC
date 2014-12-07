@@ -13,7 +13,7 @@ Dim UtcDate As Date
 Dim Iso As String
 
 LocalDate = DateValue("Jan. 2, 2003") + TimeValue("4:05:06 PM")
-UTCDate = UtcConverter.ConvertToUtc(LocalDate)
+UtcDate = UtcConverter.ConvertToUtc(LocalDate)
 
 Debug.Print VBA.Format$("yyyy-mm-ddTHH:mm:ss.000T", UtcDate)
 ' -> "2003-01-02T20:05:06.000Z"
