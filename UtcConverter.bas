@@ -12,10 +12,41 @@ Attribute VB_Name = "UtcConverter"
 ' @license: MIT (http://www.opensource.org/licenses/mit-license.php
 ' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ '
 
-Private utc_Loaded As Boolean
+#If Mac Then
+#Else
+' http://msdn.microsoft.com/en-us/library/windows/desktop/ms724421.aspx
+' http://msdn.microsoft.com/en-us/library/windows/desktop/ms724949.aspx
+' http://msdn.microsoft.com/en-us/library/windows/desktop/ms725485.aspx
+Private Declare Function utc_GetTimeZoneInformation Lib "kernel32" Alias "GetTimeZoneInformation" _
+    (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION) As Long
+Private Declare Function utc_SystemTimeToTzSpecificLocalTime Lib "kernel32" Alias "SystemTimeToTzSpecificLocalTime" _
+    (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION, utc_lpUniversalTime As utc_SYSTEMTIME, utc_lpLocalTime As utc_SYSTEMTIME) As Long
+Private Declare Function utc_TzSpecificLocalTimeToSystemTime Lib "kernel32" Alias "TzSpecificLocalTimeToSystemTime" _
+    (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION, utc_lpLocalTime As utc_SYSTEMTIME, utc_lpUniversalTime As utc_SYSTEMTIME) As Long
+
+Private Type utc_SYSTEMTIME
+    utc_A_wYear As Integer
+    utc_B_wMonth As Integer
+    utc_C_wDayOfWeek As Integer
+    utc_D_wDay As Integer
+    utc_E_wHour As Integer
+    utc_F_wMinute As Integer
+    utc_G_wSecond As Integer
+    utc_H_wMilliseconds As Integer
+End Type
+
+Private Type utc_TIME_ZONE_INFORMATION
+    utc_A_Bias As Long
+    utc_B_StandardName(0 To 31) As Integer
+    utc_C_StandardDate As utc_SYSTEMTIME
+    utc_D_StandardBias As Long
+    utc_E_DaylightName(0 To 31) As Integer
+    utc_F_DaylightDate As utc_SYSTEMTIME
+    utc_G_DaylightBias As Long
+End Type
+#End If
 
 Public utc_UtcOffsetMinutes As Long
-Public utc_Dst As Boolean
 Public utc_Override As Boolean
 
 ' ============================================= '
@@ -29,8 +60,21 @@ Public utc_Override As Boolean
 ' @return {Date} Local date
 ' -------------------------------------- '
 Public Function ParseUtc(utc_UtcDate As Date) As Date
-    utc_LoadUtcOffsetAndDst
-    ParseUtc = utc_UtcDate + VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0) + VBA.IIf(utc_Dst, VBA.TimeSerial(1, 0, 0), 0)
+    If utc_Override Then
+        ParseUtc = utc_UtcDate + VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0)
+    Else
+#If Mac Then
+    ' TODO
+#Else
+    Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
+    Dim utc_LocalDate As utc_SYSTEMTIME
+    
+    utc_GetTimeZoneInformation utc_TimeZoneInfo
+    utc_SystemTimeToTzSpecificLocalTime utc_TimeZoneInfo, DateToSystemTime(utc_UtcDate), utc_LocalDate
+    
+    ParseUtc = SystemTimeToDate(utc_LocalDate)
+#End If
+    End If
 End Function
 
 ''
@@ -40,8 +84,21 @@ End Function
 ' @return {Date} UTC date
 ' -------------------------------------- '
 Public Function ConvertToUtc(utc_LocalDate As Date) As Date
-     utc_LoadUtcOffsetAndDst
-     ConvertToUtc = utc_LocalDate - VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0) - VBA.IIf(utc_Dst, VBA.TimeSerial(1, 0, 0), 0)
+    If utc_Override Then
+        ConvertToUtc = utc_LocalDate - VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0)
+    Else
+#If Mac Then
+    ' TODO
+#Else
+    Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
+    Dim utc_UtcDate As utc_SYSTEMTIME
+    
+    utc_GetTimeZoneInformation utc_TimeZoneInfo
+    utc_TzSpecificLocalTimeToSystemTime utc_TimeZoneInfo, DateToSystemTime(utc_LocalDate), utc_UtcDate
+    
+    ConvertToUtc = SystemTimeToDate(utc_UtcDate)
+#End If
+    End If
 End Function
 
 ''
@@ -51,14 +108,13 @@ End Function
 ' @return {Date} Local date
 ' -------------------------------------- '
 Public Function ParseIso(utc_IsoString As String) As Date
-    utc_LoadUtcOffsetAndDst
-    
     On Error GoTo ErrorHandling
     
     Dim utc_Parts() As String
     Dim utc_DateParts() As String
     Dim utc_TimeParts() As String
     Dim utc_OffsetIndex As Long
+    Dim utc_HasOffset As Boolean
     Dim utc_NegativeOffset As Boolean
     Dim utc_OffsetParts() As String
     Dim utc_Offset As Date
@@ -70,12 +126,6 @@ Public Function ParseIso(utc_IsoString As String) As Date
     If UBound(utc_Parts) > 0 Then
         If VBA.InStr(utc_Parts(1), "Z") Then
             utc_TimeParts = VBA.Split(VBA.Replace(utc_Parts(1), "Z", ""), ":")
-            
-            If utc_OffsetMinutes < 0 Then
-                utc_Offset = -TimeSerial(0, utc_UtcOffsetMinutes, 0) + VBA.IIf(utc_Dst, TimeSerial(1, 0, 0), 0)
-            Else
-                utc_Offset = TimeSerial(0, utc_UtcOffsetMinutes, 0) + VBA.IIf(utc_Dst, TimeSerial(1, 0, 0), 0)
-            End If
         Else
             utc_OffsetIndex = VBA.InStr(1, utc_Parts(1), "+")
             If utc_OffsetIndex = 0 Then
@@ -84,6 +134,7 @@ Public Function ParseIso(utc_IsoString As String) As Date
             End If
             
             If utc_OffsetIndex > 0 Then
+                utc_HasOffset = True
                 utc_TimeParts = VBA.Split(VBA.Left$(utc_Parts(1), utc_OffsetIndex - 1), ":")
                 utc_OffsetParts = VBA.Split(VBA.Right$(utc_Parts(1), Len(utc_Parts(1)) - utc_OffsetIndex), ":")
                 
@@ -111,7 +162,11 @@ Public Function ParseIso(utc_IsoString As String) As Date
             ParseIso = ParseIso + VBA.TimeSerial(VBA.CInt(utc_TimeParts(0)), VBA.CInt(utc_TimeParts(1)), VBA.CInt(utc_TimeParts(2)))
         End Select
         
-        ParseIso = ParseIso + utc_Offset
+        If utc_HasOffset Then
+            ParseIso = ParseIso + utc_Offset
+        Else
+            ParseIso = ParseUtc(ParseIso)
+        End If
     End If
     
     Exit Function
@@ -128,7 +183,6 @@ End Function
 ' @return {Date} ISO 8601 string
 ' -------------------------------------- '
 Public Function ConvertToIso(utc_LocalDate As Date) As String
-    utc_LoadUtcOffsetAndDst
     ConvertToIso = VBA.Format$(ConvertToUtc(utc_LocalDate), "yyyy-mm-ddTHH:mm:ss.000Z")
 End Function
 
@@ -136,9 +190,20 @@ End Function
 ' Private Functions
 ' ============================================= '
 
-Private Sub utc_LoadUtcOffsetAndDst()
-    If Not utc_Loaded And Not utc_Override Then
-        ' TODO
-        utc_Loaded = True
-    End If
-End Sub
+#If Mac Then
+#Else
+Private Function DateToSystemTime(utc_Value As Date) As utc_SYSTEMTIME
+    DateToSystemTime.utc_A_wYear = VBA.Year(utc_Value)
+    DateToSystemTime.utc_B_wMonth = VBA.Month(utc_Value)
+    DateToSystemTime.utc_D_wDay = VBA.Day(utc_Value)
+    DateToSystemTime.utc_E_wHour = VBA.Hour(utc_Value)
+    DateToSystemTime.utc_F_wMinute = VBA.Minute(utc_Value)
+    DateToSystemTime.utc_G_wSecond = VBA.Second(utc_Value)
+    DateToSystemTime.utc_H_wMilliseconds = 0
+End Function
+
+Private Function SystemTimeToDate(utc_Value As utc_SYSTEMTIME) As Date
+    SystemTimeToDate = DateSerial(utc_Value.utc_A_wYear, utc_Value.utc_B_wMonth, utc_Value.utc_D_wDay) + _
+        TimeSerial(utc_Value.utc_E_wHour, utc_Value.utc_F_wMinute, utc_Value.utc_G_wSecond)
+End Function
+#End If

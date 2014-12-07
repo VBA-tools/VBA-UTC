@@ -1,12 +1,11 @@
 Attribute VB_Name = "Specs"
 Public Function Specs() As SpecSuite
     Set Specs = New SpecSuite
-    Specs.Description = "VBA-UtcConverter"
+    Specs.Description = "VBA-UTC"
     
-    ' Override UTC Offset and DST for specs
-    UtcConverter.utc_UtcOffsetMinutes = -5 * 60
-    UtcConverter.utc_Dst = True
+    ' Override UTC Offset for specs
     UtcConverter.utc_Override = True
+    UtcConverter.utc_UtcOffsetMinutes = -4 * 60
     
     Dim LocalDate As Date
     Dim LocalIso As String
@@ -24,21 +23,21 @@ Public Function Specs() As SpecSuite
     ' ============================================= '
     ' ParseUTC
     ' ============================================= '
-    With Specs.It("should parse UTC by UTCOffset and DST")
+    With Specs.It("should parse UTC")
         .Expect(VBA.Format$(UtcConverter.ParseUtc(UtcDate), "yyyy-mm-ddTHH:mm:ss.000Z")).ToEqual LocalIso
     End With
     
     ' ============================================= '
     ' ConvertToUTC
     ' ============================================= '
-    With Specs.It("should convert to UTC by UTCOffset and DST")
+    With Specs.It("should convert to UTC")
         .Expect(VBA.Format$(UtcConverter.ConvertToUtc(LocalDate), "yyyy-mm-ddTHH:mm:ss.000Z")).ToEqual UtcIso
     End With
     
     ' ============================================= '
     ' ParseISO
     ' ============================================= '
-    With Specs.It("should parse ISO 8601 by UTCOffset and DST")
+    With Specs.It("should parse ISO 8601")
         .Expect(VBA.Format$(UtcConverter.ParseIso(UtcIso), "yyyy-mm-ddTHH:mm:ss.000Z")).ToEqual LocalIso
     End With
     
@@ -57,7 +56,7 @@ Public Function Specs() As SpecSuite
     ' ============================================= '
     ' ConvertToISO
     ' ============================================= '
-    With Specs.It("should convert to ISO 8601 by UTCOffset and DST")
+    With Specs.It("should convert to ISO 8601")
         .Expect(VBA.Format$(UtcConverter.ConvertToIso(LocalDate), "yyyy-mm-ddTHH:mm:ss.000Z")).ToEqual UtcIso
     End With
     
