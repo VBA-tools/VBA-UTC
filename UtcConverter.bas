@@ -1,6 +1,6 @@
 Attribute VB_Name = "UtcConverter"
 ''
-' VBA-UTC v0.0.0
+' VBA-UTC v0.5.0
 ' (c) Tim Hall - https://github.com/VBA-tools/VBA-UtcConverter
 '
 ' UTC/ISO 8601 Converter for VBA
@@ -46,9 +46,6 @@ Private Type utc_TIME_ZONE_INFORMATION
 End Type
 #End If
 
-Public utc_UtcOffsetMinutes As Long
-Public utc_Override As Boolean
-
 ' ============================================= '
 ' Public Methods
 ' ============================================= '
@@ -60,9 +57,6 @@ Public utc_Override As Boolean
 ' @return {Date} Local date
 ' -------------------------------------- '
 Public Function ParseUtc(utc_UtcDate As Date) As Date
-    If utc_Override Then
-        ParseUtc = utc_UtcDate + VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0)
-    Else
 #If Mac Then
     ' TODO
 #Else
@@ -74,7 +68,6 @@ Public Function ParseUtc(utc_UtcDate As Date) As Date
     
     ParseUtc = SystemTimeToDate(utc_LocalDate)
 #End If
-    End If
 End Function
 
 ''
@@ -84,9 +77,6 @@ End Function
 ' @return {Date} UTC date
 ' -------------------------------------- '
 Public Function ConvertToUtc(utc_LocalDate As Date) As Date
-    If utc_Override Then
-        ConvertToUtc = utc_LocalDate - VBA.TimeSerial(0, utc_UtcOffsetMinutes, 0)
-    Else
 #If Mac Then
     ' TODO
 #Else
@@ -98,7 +88,6 @@ Public Function ConvertToUtc(utc_LocalDate As Date) As Date
     
     ConvertToUtc = SystemTimeToDate(utc_UtcDate)
 #End If
-    End If
 End Function
 
 ''
