@@ -1,6 +1,6 @@
 Attribute VB_Name = "UtcConverter"
 ''
-' VBA-UTC v1.0.0-rc.3
+' VBA-UTC v1.0.0-rc.4
 ' (c) Tim Hall - https://github.com/VBA-tools/VBA-UtcConverter
 '
 ' UTC/ISO 8601 Converter for VBA
@@ -11,8 +11,9 @@ Attribute VB_Name = "UtcConverter"
 ' 10013 - ISO 8601 parsing error
 ' 10014 - ISO 8601 conversion error
 '
-' @author: tim.hall.engr@gmail.com
-' @license: MIT (http://www.opensource.org/licenses/mit-license.php)
+' @module UtcConverter
+' @author tim.hall.engr@gmail.com
+' @license MIT (http://www.opensource.org/licenses/mit-license.php)
 ' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ '
 
 #If Mac Then
@@ -82,9 +83,10 @@ End Type
 ''
 ' Parse UTC date to local date
 '
-' @param {Date} utc_UtcDate
+' @method ParseUtc
+' @param {Date} UtcDate
 ' @return {Date} Local date
-' -------------------------------------- '
+''
 Public Function ParseUtc(utc_UtcDate As Date) As Date
     On Error GoTo utc_ErrorHandling
     
@@ -109,9 +111,10 @@ End Function
 ''
 ' Convert local date to UTC date
 '
+' @method ConvertToUrc
 ' @param {Date} utc_LocalDate
 ' @return {Date} UTC date
-' -------------------------------------- '
+''
 Public Function ConvertToUtc(utc_LocalDate As Date) As Date
     On Error GoTo utc_ErrorHandling
     
@@ -136,9 +139,10 @@ End Function
 ''
 ' Parse ISO 8601 date string to local date
 '
+' @method ParseIso
 ' @param {Date} utc_IsoString
 ' @return {Date} Local date
-' -------------------------------------- '
+''
 Public Function ParseIso(utc_IsoString As String) As Date
     On Error GoTo utc_ErrorHandling
     
@@ -210,9 +214,10 @@ End Function
 ''
 ' Convert local date to ISO 8601 string
 '
+' @method ConvertToIso
 ' @param {Date} utc_LocalDate
 ' @return {Date} ISO 8601 string
-' -------------------------------------- '
+''
 Public Function ConvertToIso(utc_LocalDate As Date) As String
     On Error GoTo utc_ErrorHandling
     
