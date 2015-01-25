@@ -1,8 +1,8 @@
-# VBA-UtcConverter
+# VBA-UTC
 
 UTC and ISO 8601 date conversion and parsing for VBA (Windows and Mac Excel, Access, and other Office applications).
 
-Tested in Windows Excel 2013 and Excel for Mac 2011, but should apply to 2007+.
+Tested in Windows Excel 2013 32-bit and 64-bit and Excel for Mac 2011, but should apply to Windows Excel 2007+.
 
 # Example
 
