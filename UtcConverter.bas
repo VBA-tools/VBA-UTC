@@ -203,10 +203,10 @@ Public Function ParseIso(utc_IsoString As String) As Date
             ParseIso = ParseIso + VBA.TimeSerial(VBA.CInt(utc_TimeParts(0)), VBA.CInt(utc_TimeParts(1)), VBA.CInt(utc_TimeParts(2)))
         End Select
         
+        ParseIso = ParseUtc(ParseIso)
+        
         If utc_HasOffset Then
             ParseIso = ParseIso + utc_Offset
-        Else
-            ParseIso = ParseUtc(ParseIso)
         End If
     End If
     

@@ -30,6 +30,9 @@ Public Function Specs() As SpecSuite
     Dim LocalIso As String
     Dim UtcDate As Date
     Dim UtcIso As String
+    Dim TZOffsetHours As Integer
+    Dim TZOffsetMinutes As Integer
+    Dim Offset As String
     
     ' May 6, 2004 7:08:09 PM
     LocalDate = 38113.7973263889
@@ -38,6 +41,9 @@ Public Function Specs() As SpecSuite
     ' May 6, 2004 11:08:09 PM
     UtcDate = LocalDate - OffSetMinutes / 60 / 24
     UtcIso = VBA.Format$(UtcDate, "yyyy-mm-ddTHH:mm:ss.000Z")
+    
+    TZOffsetHours = Int(-OffSetMinutes / 60)
+    TZOffsetMinutes = -(OffSetMinutes + (TZOffsetHours * 60))
     
     ' ============================================= '
     ' ParseUTC
@@ -61,13 +67,16 @@ Public Function Specs() As SpecSuite
     End With
     
     With Specs.It("should parse ISO 8601 with offset")
-        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12:08:09+04:05:06"))).ToEqual "2004-05-06T16:13:15"
-        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12:08:09-04:05:06"))).ToEqual "2004-05-06T08:03:03"
+        Offset = VBA.Right$("0" & TZOffsetHours, 2) & ":" & VBA.Right$("0" & (TZOffsetMinutes + 1), 2) & ":02"
+        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19:07:07+" & Offset))).ToEqual "2004-05-06T19:08:09"
     End With
     
     With Specs.It("should parse ISO 8601 with varying time format")
-        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12+04"))).ToEqual "2004-05-06T16:00:00"
-        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12:08+04:05"))).ToEqual "2004-05-06T16:13:00"
+        Offset = VBA.Right$("0" & TZOffsetHours, 2)
+        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19+" & Offset))).ToEqual "2004-05-06T19:00:00"
+        
+        Offset = VBA.Right$("0" & TZOffsetHours, 2) & ":" & VBA.Right$("0" & (TZOffsetMinutes + 1), 2)
+        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19:07+" & Offset))).ToEqual "2004-05-06T19:08:00"
         .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12Z"))).ToEqual _
             DateToString(DateSerial(2004, 5, 6) + TimeSerial(12, 0, 0) + OffSetMinutes / 60 / 24)
         .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12:08Z"))).ToEqual _
