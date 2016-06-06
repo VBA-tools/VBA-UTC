@@ -1,6 +1,6 @@
 Attribute VB_Name = "UtcConverter"
 ''
-' VBA-UTC v1.0.1
+' VBA-UTC v1.0.2
 ' (c) Tim Hall - https://github.com/VBA-tools/VBA-UtcConverter
 '
 ' UTC/ISO 8601 Converter for VBA
