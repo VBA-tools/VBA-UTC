@@ -239,7 +239,7 @@ Public Function ParseIso(utc_IsoString As String) As Date
         ParseIso = ParseUtc(ParseIso)
         
         If utc_HasOffset Then
-            ParseIso = ParseIso + utc_Offset
+            ParseIso = ParseIso - utc_Offset
         End If
     End If
     

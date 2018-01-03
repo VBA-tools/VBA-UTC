@@ -68,15 +68,15 @@ Public Function Specs() As SpecSuite
     
     With Specs.It("should parse ISO 8601 with offset")
         Offset = VBA.Right$("0" & TZOffsetHours, 2) & ":" & VBA.Right$("0" & (TZOffsetMinutes + 1), 2) & ":02"
-        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19:07:07+" & Offset))).ToEqual "2004-05-06T19:08:09"
+        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19:07:07-" & Offset))).ToEqual "2004-05-06T19:08:09"
     End With
     
     With Specs.It("should parse ISO 8601 with varying time format")
         Offset = VBA.Right$("0" & TZOffsetHours, 2)
-        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19+" & Offset))).ToEqual "2004-05-06T19:00:00"
+        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19-" & Offset))).ToEqual "2004-05-06T19:00:00"
         
         Offset = VBA.Right$("0" & TZOffsetHours, 2) & ":" & VBA.Right$("0" & (TZOffsetMinutes + 1), 2)
-        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19:07+" & Offset))).ToEqual "2004-05-06T19:08:00"
+        .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T19:07-" & Offset))).ToEqual "2004-05-06T19:08:00"
         .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12Z"))).ToEqual _
             DateToString(DateSerial(2004, 5, 6) + TimeSerial(12, 0, 0) + OffSetMinutes / 60 / 24)
         .Expect(DateToString(UtcConverter.ParseIso("2004-05-06T12:08Z"))).ToEqual _
