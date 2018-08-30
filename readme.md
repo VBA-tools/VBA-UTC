@@ -4,6 +4,10 @@ UTC and ISO 8601 date conversion and parsing for VBA (Windows and Mac Excel, Acc
 
 Tested in Excel 2016 for Windows and Mac, but should apply to Windows Excel 2007+.
 
+<a href="https://www.patreon.com/timhall">
+  <img src="https://timhall.github.io/assets/donate-patreon@2x.png" width="217" alt="Donate">
+</a>
+
 # Example
 
 ```VB.net
