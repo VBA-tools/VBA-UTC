@@ -123,16 +123,16 @@ End Type
 ''
 Public Function ParseUtc(utc_UtcDate As Date) As Date
     On Error GoTo utc_ErrorHandling
-    
+
 #If Mac Then
     ParseUtc = utc_ConvertDate(utc_UtcDate)
 #Else
     Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
     Dim utc_LocalDate As utc_SYSTEMTIME
-    
+
     utc_GetTimeZoneInformation utc_TimeZoneInfo
     utc_SystemTimeToTzSpecificLocalTime utc_TimeZoneInfo, utc_DateToSystemTime(utc_UtcDate), utc_LocalDate
-    
+
     ParseUtc = utc_SystemTimeToDate(utc_LocalDate)
 #End If
 
@@ -152,21 +152,21 @@ End Function
 ''
 Public Function ConvertToUtc(utc_LocalDate As Date) As Date
     On Error GoTo utc_ErrorHandling
-    
+
 #If Mac Then
     ConvertToUtc = utc_ConvertDate(utc_LocalDate, utc_ConvertToUtc:=True)
 #Else
     Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
     Dim utc_UtcDate As utc_SYSTEMTIME
-    
+
     utc_GetTimeZoneInformation utc_TimeZoneInfo
     utc_TzSpecificLocalTimeToSystemTime utc_TimeZoneInfo, utc_DateToSystemTime(utc_LocalDate), utc_UtcDate
-    
+
     ConvertToUtc = utc_SystemTimeToDate(utc_UtcDate)
 #End If
-    
+
     Exit Function
-    
+
 utc_ErrorHandling:
     Err.Raise 10012, "UtcConverter.ConvertToUtc", "UTC conversion error: " & Err.Number & " - " & Err.Description
 End Function
@@ -181,7 +181,7 @@ End Function
 ''
 Public Function ParseIso(utc_IsoString As String) As Date
     On Error GoTo utc_ErrorHandling
-    
+
     Dim utc_Parts() As String
     Dim utc_DateParts() As String
     Dim utc_TimeParts() As String
@@ -190,11 +190,11 @@ Public Function ParseIso(utc_IsoString As String) As Date
     Dim utc_NegativeOffset As Boolean
     Dim utc_OffsetParts() As String
     Dim utc_Offset As Date
-    
+
     utc_Parts = VBA.Split(utc_IsoString, "T")
     utc_DateParts = VBA.Split(utc_Parts(0), "-")
     ParseIso = VBA.DateSerial(VBA.CInt(utc_DateParts(0)), VBA.CInt(utc_DateParts(1)), VBA.CInt(utc_DateParts(2)))
-    
+
     If UBound(utc_Parts) > 0 Then
         If VBA.InStr(utc_Parts(1), "Z") Then
             utc_TimeParts = VBA.Split(VBA.Replace(utc_Parts(1), "Z", ""), ":")
@@ -204,12 +204,12 @@ Public Function ParseIso(utc_IsoString As String) As Date
                 utc_NegativeOffset = True
                 utc_OffsetIndex = VBA.InStr(1, utc_Parts(1), "-")
             End If
-            
+
             If utc_OffsetIndex > 0 Then
                 utc_HasOffset = True
                 utc_TimeParts = VBA.Split(VBA.Left$(utc_Parts(1), utc_OffsetIndex - 1), ":")
                 utc_OffsetParts = VBA.Split(VBA.Right$(utc_Parts(1), Len(utc_Parts(1)) - utc_OffsetIndex), ":")
-                
+
                 Select Case UBound(utc_OffsetParts)
                 Case 0
                     utc_Offset = TimeSerial(VBA.CInt(utc_OffsetParts(0)), 0, 0)
@@ -219,13 +219,13 @@ Public Function ParseIso(utc_IsoString As String) As Date
                     ' VBA.Val does not use regional settings, use for seconds to avoid decimal/comma issues
                     utc_Offset = TimeSerial(VBA.CInt(utc_OffsetParts(0)), VBA.CInt(utc_OffsetParts(1)), Int(VBA.Val(utc_OffsetParts(2))))
                 End Select
-                
+
                 If utc_NegativeOffset Then: utc_Offset = -utc_Offset
             Else
                 utc_TimeParts = VBA.Split(utc_Parts(1), ":")
             End If
         End If
-        
+
         Select Case UBound(utc_TimeParts)
         Case 0
             ParseIso = ParseIso + VBA.TimeSerial(VBA.CInt(utc_TimeParts(0)), 0, 0)
@@ -235,16 +235,16 @@ Public Function ParseIso(utc_IsoString As String) As Date
             ' VBA.Val does not use regional settings, use for seconds to avoid decimal/comma issues
             ParseIso = ParseIso + VBA.TimeSerial(VBA.CInt(utc_TimeParts(0)), VBA.CInt(utc_TimeParts(1)), Int(VBA.Val(utc_TimeParts(2))))
         End Select
-        
+
         ParseIso = ParseUtc(ParseIso)
-        
+
         If utc_HasOffset Then
             ParseIso = ParseIso - utc_Offset
         End If
     End If
-    
+
     Exit Function
-    
+
 utc_ErrorHandling:
     Err.Raise 10013, "UtcConverter.ParseIso", "ISO 8601 parsing error for " & utc_IsoString & ": " & Err.Number & " - " & Err.Description
 End Function
@@ -259,11 +259,11 @@ End Function
 ''
 Public Function ConvertToIso(utc_LocalDate As Date) As String
     On Error GoTo utc_ErrorHandling
-    
+
     ConvertToIso = VBA.Format$(ConvertToUtc(utc_LocalDate), "yyyy-mm-ddTHH:mm:ss.000Z")
-    
+
     Exit Function
-    
+
 utc_ErrorHandling:
     Err.Raise 10014, "UtcConverter.ConvertToIso", "ISO 8601 conversion error: " & Err.Number & " - " & Err.Description
 End Function
@@ -280,7 +280,7 @@ Private Function utc_ConvertDate(utc_Value As Date, Optional utc_ConvertToUtc As
     Dim utc_Parts() As String
     Dim utc_DateParts() As String
     Dim utc_TimeParts() As String
-    
+
     If utc_ConvertToUtc Then
         utc_ShellCommand = "date -ur `date -jf '%Y-%m-%d %H:%M:%S' " & _
             "'" & VBA.Format$(utc_Value, "yyyy-mm-dd HH:mm:ss") & "' " & _
@@ -290,16 +290,16 @@ Private Function utc_ConvertDate(utc_Value As Date, Optional utc_ConvertToUtc As
             "'" & VBA.Format$(utc_Value, "yyyy-mm-dd HH:mm:ss") & " +0000' " & _
             "+'%Y-%m-%d %H:%M:%S'"
     End If
-    
+
     utc_Result = utc_ExecuteInShell(utc_ShellCommand)
-    
+
     If utc_Result.utc_Output = "" Then
         Err.Raise 10015, "UtcConverter.utc_ConvertDate", "'date' command failed"
     Else
         utc_Parts = Split(utc_Result.utc_Output, " ")
         utc_DateParts = Split(utc_Parts(0), "-")
         utc_TimeParts = Split(utc_Parts(1), ":")
-        
+
         utc_ConvertDate = DateSerial(utc_DateParts(0), utc_DateParts(1), utc_DateParts(2)) + _
             TimeSerial(utc_TimeParts(0), utc_TimeParts(1), utc_TimeParts(2))
     End If
