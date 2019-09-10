@@ -1,6 +1,4 @@
-# Ignore temporary Excel files
-*/~$*
+/build
 
-# Ignore scratch work and other files
 _scratch
 .DS_Store

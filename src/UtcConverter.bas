@@ -1,7 +1,6 @@
 Attribute VB_Name = "UtcConverter"
 ''
-' VBA-UTC v1.0.6
-' (c) Tim Hall - https://github.com/VBA-tools/VBA-UtcConverter
+' # UtcConverter
 '
 ' UTC/ISO 8601 Converter for VBA
 '
@@ -12,8 +11,9 @@ Attribute VB_Name = "UtcConverter"
 ' 10014 - ISO 8601 conversion error
 '
 ' @module UtcConverter
-' @author tim.hall.engr@gmail.com
-' @license MIT (http://www.opensource.org/licenses/mit-license.php)
+' @author Tim Hall <tim.hall.engr@gmail.com>
+' @repository https://github.com/vba-tools/vba-utc
+' @license
 '' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ '
 
 #If Mac Then

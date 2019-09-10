@@ -1,0 +1,13 @@
+[package]
+name = "utc"
+version = "1.0.6"
+authors = ["Tim Hall <tim.hall.engr@gmail.com"]
+
+[src]
+UtcConverter = "src/UtcConverter.bas"
+
+[dev-src]
+Tests = "tests/Tests.bas"
+
+[dev-dependencies]
+test = { path = "../vba-test" }

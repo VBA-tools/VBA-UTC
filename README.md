@@ -1,4 +1,4 @@
-# VBA-UTC
+# vba-utc
 
 UTC and ISO 8601 date conversion and parsing for VBA (Windows and Mac Excel, Access, and other Office applications).
 
