@@ -85,24 +85,30 @@ End Type
 #End If
 
 #Else
+' Windows time structures.
+Public Enum TIME_ZONE
+    TIME_ZONE_ID_INVALID = 0
+    TIME_ZONE_STANDARD = 1
+    TIME_ZONE_DAYLIGHT = 2
+End Enum
 
-Private Type utc_SYSTEMTIME
-    utc_wYear As Integer
-    utc_wMonth As Integer
-    utc_wDayOfWeek As Integer
-    utc_wDay As Integer
-    utc_wHour As Integer
-    utc_wMinute As Integer
-    utc_wSecond As Integer
-    utc_wMilliseconds As Integer
+Public Type utc_SYSTEMTIME
+    utc_wYear As Long
+    utc_wMonth As Long
+    utc_wDayOfWeek As Long
+    utc_wDay As Long
+    utc_wHour As Long
+    utc_wMinute As Long
+    utc_wSecond As Long
+    utc_wMilliseconds As Long
 End Type
 
 Private Type utc_TIME_ZONE_INFORMATION
     utc_Bias As Long
-    utc_StandardName(0 To 31) As Integer
+    utc_StandardName(0 To 31) As Long
     utc_StandardDate As utc_SYSTEMTIME
     utc_StandardBias As Long
-    utc_DaylightName(0 To 31) As Integer
+    utc_DaylightName(0 To 31) As Long
     utc_DaylightDate As utc_SYSTEMTIME
     utc_DaylightBias As Long
 End Type
@@ -120,12 +126,21 @@ End Type
 ' @param {Date} UtcDate
 ' @return {Date} Local date
 ' @throws 10011 - UTC parsing error
+
+' NOTE: Mac functions may or may not return the millisecond portion of the value; they're untested.
+'       Windows time parsing has been extensively tested to return the correct value.
 ''
 Public Function ParseUtc(utc_UtcDate As Date) As Date
+' Changed to wrapper to allow legacy users to keep their names.
+    ParseUtc = ConvertToLocalDate(utc_UtcDate)
+End Function
+
+' Renamed to be clearer to dev what this function does.
+Public Function ConvertToLocalDate(utc_UtcDate As Date) As Date
     On Error GoTo utc_ErrorHandling
 
 #If Mac Then
-    ParseUtc = utc_ConvertDate(utc_UtcDate)
+    ConvertToLocalDate = utc_ConvertDate(utc_UtcDate)
 #Else
     Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
     Dim utc_LocalDate As utc_SYSTEMTIME
@@ -133,13 +148,13 @@ Public Function ParseUtc(utc_UtcDate As Date) As Date
     utc_GetTimeZoneInformation utc_TimeZoneInfo
     utc_SystemTimeToTzSpecificLocalTime utc_TimeZoneInfo, utc_DateToSystemTime(utc_UtcDate), utc_LocalDate
 
-    ParseUtc = utc_SystemTimeToDate(utc_LocalDate)
+    ConvertToLocalDate = utc_SystemTimeToDate(utc_LocalDate)
 #End If
 
     Exit Function
 
 utc_ErrorHandling:
-    Err.Raise 10011, "UtcConverter.ParseUtc", "UTC parsing error: " & Err.Number & " - " & Err.Description
+    Err.Raise 10011, "UtcConverter.ConvertToLocalDate", "UTC parsing error: " & Err.Number & " - " & Err.Description
 End Function
 
 ''
