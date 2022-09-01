@@ -222,12 +222,11 @@ End Type
 '       Windows time parsing has been extensively tested to return the correct value.
 ''
 Public Function ParseUtc(utc_UtcDate As Date) As Date
-' Changed to wrapper to allow legacy users to keep their names.
     ParseUtc = ConvertToLocalDate(utc_UtcDate)
 End Function
 
-' Renamed to be clearer to dev what this function does.
-Public Function ConvertToLocalDate(utc_UtcDate As Date) As Date
+
+Public Function ConvertToLocalDate(ByVal utc_UtcDate As Date) As Date
     On Error GoTo utc_ErrorHandling
 
 #If Mac Then
