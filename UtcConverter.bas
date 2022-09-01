@@ -232,15 +232,33 @@ Public Function ConvertToLocalDate(ByVal utc_UtcDate As Date) As Date
 #If Mac Then
     ConvertToLocalDate = utc_ConvertDate(utc_UtcDate)
 #Else
+    Dim utc_DynamicTimeZoneInfo As DYNAMIC_TIME_ZONE_INFORMATION
+    Dim UTCDateYear As Integer ' The year of UTC date.
+    
+    Dim utc_UtcDateSysTime As utc_SYSTEMTIME ' Gets the year and month to compare.
     Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
-    Dim utc_LocalDate As utc_SYSTEMTIME
+    
+    Dim utc_LocalDateSysTime As utc_SYSTEMTIME
 
-    utc_GetTimeZoneInformation utc_TimeZoneInfo
-    utc_SystemTimeToTzSpecificLocalTime utc_TimeZoneInfo, utc_DateToSystemTime(utc_UtcDate), utc_LocalDate
+    ' Convert to SystemTime to facilitate more accurate date checking.
+    utc_UtcDateSysTime = utc_DateToSystemTime(utc_UtcDate)
+    
+    UTCDateYear = utc_UtcDateSysTime.utc_wYear
 
-    ConvertToLocalDate = utc_SystemTimeToDate(utc_LocalDate)
+Recheck_Year:
+    ' Get the timezone data for that year.
+    GetDynamicTimeZoneInformation utc_DynamicTimeZoneInfo
+    GetTimeZoneInformationForYear UTCDateYear, utc_DynamicTimeZoneInfo, utc_TimeZoneInfo
+    SystemTimeToTzSpecificLocalTimeEx utc_DynamicTimeZoneInfo, utc_UtcDateSysTime, utc_LocalDateSysTime
+    
+    If UTCDateYear <> utc_LocalDateSysTime.utc_wYear Then
+        UTCDateYear = utc_LocalDateSysTime.utc_wYear
+        GoTo Recheck_Year
+    End If
+    
+    ConvertToLocalDate = utc_SystemTimeToDate(utc_LocalDateSysTime)
 #End If
-
+ 
     Exit Function
 
 utc_ErrorHandling:
@@ -255,17 +273,25 @@ End Function
 ' @return {Date} UTC date
 ' @throws 10012 - UTC conversion error
 ''
+'Public Function LocalToUTC(utc_LocalDate As Date) As Date
+'    LocalToUTC = ConvertToUtc(utc_LocalDate)
+'End Function
+
 Public Function ConvertToUtc(utc_LocalDate As Date) As Date
     On Error GoTo utc_ErrorHandling
-
+    
 #If Mac Then
     ConvertToUtc = utc_ConvertDate(utc_LocalDate, utc_ConvertToUtc:=True)
 #Else
+    Dim utc_DynamicTimeZoneInfo As DYNAMIC_TIME_ZONE_INFORMATION
     Dim utc_TimeZoneInfo As utc_TIME_ZONE_INFORMATION
     Dim utc_UtcDate As utc_SYSTEMTIME
-
-    utc_GetTimeZoneInformation utc_TimeZoneInfo
-    utc_TzSpecificLocalTimeToSystemTime utc_TimeZoneInfo, utc_DateToSystemTime(utc_LocalDate), utc_UtcDate
+    Dim utc_LocalSystemTime As utc_SYSTEMTIME
+    
+    utc_LocalSystemTime = utc_DateToSystemTime(utc_LocalDate)
+    GetDynamicTimeZoneInformation utc_DynamicTimeZoneInfo
+    GetTimeZoneInformationForYear utc_LocalSystemTime.utc_wYear, utc_DynamicTimeZoneInfo, utc_TimeZoneInfo
+    TzSpecificLocalTimeToSystemTimeEx utc_DynamicTimeZoneInfo, utc_LocalSystemTime, utc_UtcDate
 
     ConvertToUtc = utc_SystemTimeToDate(utc_UtcDate)
 #End If
