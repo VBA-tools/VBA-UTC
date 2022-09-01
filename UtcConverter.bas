@@ -1,8 +1,8 @@
 Attribute VB_Name = "UtcConverter"
 ''
-' VBA-UTC v1.0.6
+' VBA-UTC v2.0.1
 ' (c) Tim Hall - https://github.com/VBA-tools/VBA-UtcConverter
-'
+' (c) hecon5 - 2022-08-30T16:00:20.540Z rewrites and updates.
 ' UTC/ISO 8601 Converter for VBA
 '
 ' Errors:
@@ -12,9 +12,25 @@ Attribute VB_Name = "UtcConverter"
 ' 10014 - ISO 8601 conversion error
 '
 ' @module UtcConverter
-' @author tim.hall.engr@gmail.com
+' @author tim.hall.engr@gmail.com, hecon5
 ' @license MIT (http://www.opensource.org/licenses/mit-license.php)
 '' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ '
+Option Compare Text
+Option Explicit
+
+' Spec details which make parsing easier, instead of calling and / or doing math every time.
+Private Const TotalHoursInDay As Double = 24
+Private Const TotalMinutesInDay As Double = TotalHoursInDay * 60
+Private Const TotalSecondsInDay As Double = TotalMinutesInDay * 60
+Private Const TotalMillisecondsInDay As Double = TotalSecondsInDay * 1000
+
+
+Private Const DecimalSeparator As String = "."
+Private Const ISO8601DateDelimiter As String = "-"
+Private Const ISO8601DateTimeSeparator As String = "T"
+Private Const ISO8601TimeDelimiter As String = ":"
+Private Const ISO8601UTCTimeZone As String = "Z"
+
 
 #If Mac Then
 
