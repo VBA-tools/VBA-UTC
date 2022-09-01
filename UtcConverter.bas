@@ -302,6 +302,64 @@ utc_ErrorHandling:
     Err.Raise 10012, "UtcConverter.ConvertToUtc", "UTC conversion error: " & Err.Number & " - " & Err.Description
 End Function
 
+' NOTE: As of now, "LocalTimeStamp" does nothing on a Mac; need to build "getTimeZoneOffset" for Mac, and I don't have one.
+'       It will, however, output a UTC string that is correct for local time (eg, in the correct UTC for the given local time)
+'       I also don't know how to get millisecond values out of a Mac, so that'll return zero, as well.
+Public Function ISO8601TimeStamp(Optional IncludeMilliseconds As Boolean = True _
+                                , Optional LocalTimeStamp As Boolean = False) As String
+    Dim CurrentTimeVB As Date
+    
+    Dim tString_Buffer As StringBufferCache
+' Note: This varies slightly from ConvertToISO8601Time because it's faster to do on Windows if you have SYSTEMTIME
+#If Mac Then
+    ' I'm sure there's a way to do this better, but this works for now.
+    CurrentTimeVB = ConvertToUtc(VBA.Now())
+
+    String_BufferAppend tString_Buffer, VBA.Format(CurrentTimeVB, ISOTimeFormatStr)
+    If IncludeMilliseconds Then String_BufferAppend tString_Buffer, "." & VBA.Format(GetMilliseconds(CurrentTimeVB), "000")
+
+#Else
+    Dim tSysTime As utc_SYSTEMTIME
+
+    If Not LocalTimeStamp Then
+        GetSystemTime tSysTime
+        CurrentTimeVB = utc_SystemTimeToDate(tSysTime)
+    Else
+        GetLocalTime tSysTime
+        CurrentTimeVB = utc_SystemTimeToDate(tSysTime)
+    End If
+
+    String_BufferAppend tString_Buffer, VBA.Format(CurrentTimeVB, ISOTimeFormatStr)
+    If IncludeMilliseconds Then String_BufferAppend tString_Buffer, "." & VBA.Format(tSysTime.utc_wMilliseconds, "000")
+
+    If LocalTimeStamp Then
+        String_BufferAppend tString_Buffer, CurrentISOTimezoneOffset
+    Else
+        String_BufferAppend tString_Buffer, ISO8601UTCTimeZone
+    End If
+#End If
+
+    ISO8601TimeStamp = string_BufferToString(tString_Buffer)
+End Function
+
+' Wrappers to make it easier to use the below.
+Public Function ParseISOTimeStampToUTC(utc_IsoString As String) As Date
+    ParseISOTimeStampToUTC = ParseIso(utc_IsoString, True)
+End Function
+
+Public Function ParseISOTimeStampToLocal(utc_IsoString As String) As Date
+    ParseISOTimeStampToLocal = ParseIso(utc_IsoString)
+End Function
+
+' While this function may look silly, it is useful when converting disparate time zone stamps in a log to a common one when aligning user input data.
+Public Function ParseISOTimeStampToISO8601TimeStamp(ByRef InVal As String _
+                                                , Optional LocalOut As Boolean = False) As String
+    Dim tDateTime As Date
+    
+    tDateTime = ParseIso(InVal, True)
+    ParseISOTimeStampToISO8601TimeStamp = ConvertToISO8601Time(tDateTime, True, LocalOut, True)
+End Function
+
 ''
 ' Parse ISO 8601 date string to local date
 '
@@ -309,11 +367,19 @@ End Function
 ' @param {Date} utc_IsoString
 ' @return {Date} Local date
 ' @throws 10013 - ISO 8601 parsing error
-''
-Public Function ParseIso(utc_IsoString As String) As Date
+'
+Public Function ParseIso(utc_IsoString As String _
+                        , Optional ByVal OutputUTCDate As Boolean = False) As Date
     On Error GoTo utc_ErrorHandling
-
     Dim utc_Parts() As String
+    Dim utc_DateTimeOut As Date
+
+    If utc_IsoString = vbNullString Then Exit Function
+    utc_Parts = VBA.Split(utc_IsoString, ISO8601DateTimeSeparator)
+
+#If Mac Then
+' Mac doesn't have RegEx, so we can't map all of the dates, only date numbers, unlike RegEx which can support date names and most of the suite of
+' ISO8601 Date formatting.
     Dim utc_DateParts() As String
     Dim utc_TimeParts() As String
     Dim utc_OffsetIndex As Long
@@ -322,13 +388,12 @@ Public Function ParseIso(utc_IsoString As String) As Date
     Dim utc_OffsetParts() As String
     Dim utc_Offset As Date
 
-    utc_Parts = VBA.Split(utc_IsoString, "T")
-    utc_DateParts = VBA.Split(utc_Parts(0), "-")
-    ParseIso = VBA.DateSerial(VBA.CInt(utc_DateParts(0)), VBA.CInt(utc_DateParts(1)), VBA.CInt(utc_DateParts(2)))
-
+    utc_DateParts = VBA.Split(utc_Parts(0), ISO8601DateDelimiter)
+    utc_DateTimeOut = VBA.DateSerial(VBA.CInt(utc_DateParts(0)), VBA.CInt(utc_DateParts(1)), VBA.CInt(utc_DateParts(2)))
+'TimeSerialDbl
     If UBound(utc_Parts) > 0 Then
-        If VBA.InStr(utc_Parts(1), "Z") Then
-            utc_TimeParts = VBA.Split(VBA.Replace(utc_Parts(1), "Z", ""), ":")
+        If VBA.InStr(utc_Parts(1), ISO8601UTCTimeZone) Then
+            utc_TimeParts = VBA.Split(VBA.Replace(utc_Parts(1), ISO8601UTCTimeZone, vbNullString), ISO8601TimeDelimiter)
         Else
             utc_OffsetIndex = VBA.InStr(1, utc_Parts(1), "+")
             If utc_OffsetIndex = 0 Then
@@ -338,46 +403,66 @@ Public Function ParseIso(utc_IsoString As String) As Date
 
             If utc_OffsetIndex > 0 Then
                 utc_HasOffset = True
-                utc_TimeParts = VBA.Split(VBA.Left$(utc_Parts(1), utc_OffsetIndex - 1), ":")
-                utc_OffsetParts = VBA.Split(VBA.Right$(utc_Parts(1), Len(utc_Parts(1)) - utc_OffsetIndex), ":")
+                utc_TimeParts = VBA.Split(VBA.Left$(utc_Parts(1), utc_OffsetIndex - 1), ISO8601TimeDelimiter)
+                utc_OffsetParts = VBA.Split(VBA.Right$(utc_Parts(1), Len(utc_Parts(1)) - utc_OffsetIndex), ISO8601TimeDelimiter)
 
                 Select Case UBound(utc_OffsetParts)
                 Case 0
-                    utc_Offset = TimeSerial(VBA.CInt(utc_OffsetParts(0)), 0, 0)
+                    utc_Offset = TimeSerialDbl(VBA.CDbl(utc_OffsetParts(0)), 0, 0)
                 Case 1
-                    utc_Offset = TimeSerial(VBA.CInt(utc_OffsetParts(0)), VBA.CInt(utc_OffsetParts(1)), 0)
+                    utc_Offset = TimeSerialDbl(VBA.CDbl(utc_OffsetParts(0)), VBA.CDbl(utc_OffsetParts(1)), 0)
                 Case 2
                     ' VBA.Val does not use regional settings, use for seconds to avoid decimal/comma issues
-                    utc_Offset = TimeSerial(VBA.CInt(utc_OffsetParts(0)), VBA.CInt(utc_OffsetParts(1)), Int(VBA.Val(utc_OffsetParts(2))))
+                    utc_Offset = TimeSerialDbl(VBA.CDbl(utc_OffsetParts(0)), VBA.CDbl(utc_OffsetParts(1)), VBA.CDbl(VBA.Val(utc_OffsetParts(2))))
                 End Select
 
                 If utc_NegativeOffset Then: utc_Offset = -utc_Offset
             Else
-                utc_TimeParts = VBA.Split(utc_Parts(1), ":")
+                utc_TimeParts = VBA.Split(utc_Parts(1), ISO8601TimeDelimiter)
             End If
         End If
 
         Select Case UBound(utc_TimeParts)
         Case 0
-            ParseIso = ParseIso + VBA.TimeSerial(VBA.CInt(utc_TimeParts(0)), 0, 0)
+            utc_DateTimeOut = utc_DateTimeOut + TimeSerialDbl(VBA.CInt(utc_TimeParts(0)), 0, 0)
         Case 1
-            ParseIso = ParseIso + VBA.TimeSerial(VBA.CInt(utc_TimeParts(0)), VBA.CInt(utc_TimeParts(1)), 0)
+            utc_DateTimeOut = utc_DateTimeOut + TimeSerialDbl(VBA.CInt(utc_TimeParts(0)), VBA.CInt(utc_TimeParts(1)), 0)
         Case 2
             ' VBA.Val does not use regional settings, use for seconds to avoid decimal/comma issues
-            ParseIso = ParseIso + VBA.TimeSerial(VBA.CInt(utc_TimeParts(0)), VBA.CInt(utc_TimeParts(1)), Int(VBA.Val(utc_TimeParts(2))))
+            utc_DateTimeOut = utc_DateTimeOut + TimeSerialDbl(VBA.CInt(utc_TimeParts(0)), VBA.CInt(utc_TimeParts(1)), Int(VBA.Val(utc_TimeParts(2))))
         End Select
 
-        ParseIso = ParseUtc(ParseIso)
+        If OutputUTCDate Then utc_DateTimeOut = ConvertToLocalDate(utc_DateTimeOut)
 
         If utc_HasOffset Then
-            ParseIso = ParseIso - utc_Offset
+            ParseIso = utc_DateTimeOut - utc_Offset
         End If
     End If
 
     Exit Function
-
+#Else
+    If UBound(utc_Parts) > 0 Then
+        utc_DateTimeOut = ConvDateUTC(utc_Parts(0)) + ConvTimeUTC(utc_Parts(1))
+        If Not OutputUTCDate Then
+            ParseIso = ConvertToLocalDate(utc_DateTimeOut)
+        Else
+            ParseIso = utc_DateTimeOut
+        End If
+    Else ' Assume any "Date Only" Text doesn't have a timezone (they aren't converted the other way, either)
+        ParseIso = ConvDateUTC(utc_Parts(0))
+    End If
+    Exit Function
+#End If
 utc_ErrorHandling:
     Err.Raise 10013, "UtcConverter.ParseIso", "ISO 8601 parsing error for " & utc_IsoString & ": " & Err.Number & " - " & Err.Description
+End Function
+
+Public Function ConvertToUTCISO8601TimeStamp(ByVal LocalDateIn As Date) As String
+    ConvertToUTCISO8601TimeStamp = ConvertToISO8601Time(LocalDateIn, False, False, True)
+End Function
+
+Public Function ConvertToLocalISO8601TimeStamp(ByVal UTCDateIn As Date) As String
+    ConvertToLocalISO8601TimeStamp = ConvertToISO8601Time(UTCDateIn, True, True, True)
 End Function
 
 ''
