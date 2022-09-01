@@ -927,8 +927,8 @@ End Function
 ' String_BufferAppend
 ' Based on VBA-Tools\Jsonconverter's "json_BufferAppend" functions
 ' To use, your calling routine needs to store the input variables to be handed back.
-Private Sub String_BufferAppend(ByRef StringBufferIn As StringBufferCache, _
-                              ByRef string_Append As Variant)
+Private Sub String_BufferAppend(ByRef StringBufferIn As StringBufferCache _
+                                , ByRef string_Append As Variant)
     ' VBA can be slow to append strings due to allocating a new string for each append
     ' Instead of using the traditional append, allocate a large empty string and then copy string at append position
     '
