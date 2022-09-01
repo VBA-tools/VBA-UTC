@@ -61,18 +61,70 @@ Private Declare Function utc_feof Lib "libc.dylib" Alias "feof" _
 #End If
 
 #ElseIf VBA7 Then
+' Windows VBA7
+
+Private Declare PtrSafe Sub GetSystemTime Lib "kernel32" (lpSystemTime As utc_SYSTEMTIME)
+Private Declare PtrSafe Sub GetLocalTime Lib "kernel32" (lpSystemTime As utc_SYSTEMTIME)
 
 ' http://msdn.microsoft.com/en-us/library/windows/desktop/ms724421.aspx
 ' http://msdn.microsoft.com/en-us/library/windows/desktop/ms724949.aspx
 ' http://msdn.microsoft.com/en-us/library/windows/desktop/ms725485.aspx
 Private Declare PtrSafe Function utc_GetTimeZoneInformation Lib "kernel32" Alias "GetTimeZoneInformation" _
     (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION) As Long
+    
 Private Declare PtrSafe Function utc_SystemTimeToTzSpecificLocalTime Lib "kernel32" Alias "SystemTimeToTzSpecificLocalTime" _
     (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION, utc_lpUniversalTime As utc_SYSTEMTIME, utc_lpLocalTime As utc_SYSTEMTIME) As Long
 Private Declare PtrSafe Function utc_TzSpecificLocalTimeToSystemTime Lib "kernel32" Alias "TzSpecificLocalTimeToSystemTime" _
     (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION, utc_lpLocalTime As utc_SYSTEMTIME, utc_lpUniversalTime As utc_SYSTEMTIME) As Long
 
+' Dynamic Functions allow for past Time Zones to be accounted for. Above will work for "now".
+' https://docs.microsoft.com/en-us/windows/win32/api/timezoneapi/nf-timezoneapi-gettimezoneinformationforyear
+' From docs: the wYear is LOCAL time, so if the year converts over, you need to check the following (or prior) year.
+' to ensure you get the correct time zone detail.
+' Word of warning: https://devblogs.microsoft.com/oldnewthing/20110311-00/?p=11243
+Private Declare PtrSafe Function GetTimeZoneInformationForYear Lib "kernel32" ( _
+    wYear As Integer _
+    , ByRef lpDynamicTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION _
+    , ByRef lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION) As Long
+
+Private Declare PtrSafe Function GetDynamicTimeZoneInformation Lib "kernel32" ( _
+    ByRef pTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION) As Long
+
+Private Declare PtrSafe Function SystemTimeToTzSpecificLocalTimeEx Lib "kernel32" ( _
+    ByRef lpDynamicTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION _
+    , ByRef lpUniversalTime As utc_SYSTEMTIME _
+    , ByRef lpLocalTime As utc_SYSTEMTIME) As Long
+
+Private Declare PtrSafe Function TzSpecificLocalTimeToSystemTimeEx Lib "kernel32" ( _
+    ByRef lpDynamicTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION _
+    , ByRef lpLocalTime As utc_SYSTEMTIME _
+    , ByRef lpUniversalTime As utc_SYSTEMTIME) As Long
+    
 #Else
+' VBA 6 or less.
+
+Private Declare Function GetTimeZoneInformationForYear Lib "kernel32" ( _
+    wYear As Integer, _
+    lpDynamicTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION, _
+    lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION _
+) As Long
+
+Private Declare Function GetDynamicTimeZoneInformation Lib "kernel32" ( _
+    pTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION _
+) As Long
+Private Declare Function SystemTimeToTzSpecificLocalTimeEx Lib "kernel32" ( _
+    ByRef lpDynamicTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION _
+    , ByRef lpUniversalTime As utc_SYSTEMTIME _
+    , ByRef lpLocalTime As utc_SYSTEMTIME) As Long
+
+Private Declare Function TzSpecificLocalTimeToSystemTimeEx Lib "kernel32" ( _
+    lpDynamicTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION, _
+    lpLocalTime As utc_SYSTEMTIME, _
+    lpUniversalTime As utc_SYSTEMTIME _
+) As Long
+
+Private Declare Sub GetSystemTime Lib "kernel32" (lpSystemTime As utc_SYSTEMTIME)
+Private Declare Sub GetLocalTime Lib "kernel32" (lpSystemTime As utc_SYSTEMTIME)
 
 Private Declare Function utc_GetTimeZoneInformation Lib "kernel32" Alias "GetTimeZoneInformation" _
     (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION) As Long
@@ -80,8 +132,12 @@ Private Declare Function utc_SystemTimeToTzSpecificLocalTime Lib "kernel32" Alia
     (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION, utc_lpUniversalTime As utc_SYSTEMTIME, utc_lpLocalTime As utc_SYSTEMTIME) As Long
 Private Declare Function utc_TzSpecificLocalTimeToSystemTime Lib "kernel32" Alias "TzSpecificLocalTimeToSystemTime" _
     (utc_lpTimeZoneInformation As utc_TIME_ZONE_INFORMATION, utc_lpLocalTime As utc_SYSTEMTIME, utc_lpUniversalTime As utc_SYSTEMTIME) As Long
-
 #End If
+
+
+' ============================================= '
+' Required types
+' ============================================= '
 
 #If Mac Then
 
@@ -109,27 +165,46 @@ Public Enum TIME_ZONE
 End Enum
 
 Public Type utc_SYSTEMTIME
-    utc_wYear As Long
-    utc_wMonth As Long
-    utc_wDayOfWeek As Long
-    utc_wDay As Long
-    utc_wHour As Long
-    utc_wMinute As Long
-    utc_wSecond As Long
-    utc_wMilliseconds As Long
+    utc_wYear As Integer
+    utc_wMonth As Integer
+    utc_wDayOfWeek As Integer
+    utc_wDay As Integer
+    utc_wHour As Integer
+    utc_wMinute As Integer
+    utc_wSecond As Integer
+    utc_wMilliseconds As Integer
 End Type
 
 Private Type utc_TIME_ZONE_INFORMATION
     utc_Bias As Long
-    utc_StandardName(0 To 31) As Long
+    utc_StandardName(0 To 31) As Integer
     utc_StandardDate As utc_SYSTEMTIME
     utc_StandardBias As Long
-    utc_DaylightName(0 To 31) As Long
+    utc_DaylightName(0 To 31) As Integer
     utc_DaylightDate As utc_SYSTEMTIME
     utc_DaylightBias As Long
 End Type
 
+Private Type DYNAMIC_TIME_ZONE_INFORMATION
+    Bias As Long
+    StandardName(0 To 31) As Integer
+    StandardDate As utc_SYSTEMTIME
+    StandardBias As Long
+    DaylightName(0 To 31) As Integer
+    DaylightDate As utc_SYSTEMTIME
+    DaylightBias As Long
+    TimeZoneKeyName(0 To 127) As Integer
+    DynamicDaylightTimeDisabled As Integer
+End Type
 #End If
+
+
+Private Type StringBufferCache
+    String_Buffer As String
+    string_BufferPosition As Long
+    string_BufferLength As Long
+End Type
+
 
 ' ============================================= '
 ' Public Methods
