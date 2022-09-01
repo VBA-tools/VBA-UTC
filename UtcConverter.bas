@@ -473,17 +473,85 @@ End Function
 ' @return {Date} ISO 8601 string
 ' @throws 10014 - ISO 8601 conversion error
 ''
-Public Function ConvertToIso(utc_LocalDate As Date) As String
+Public Function ConvertToIso(utc_LocalDate As Date _
+                            , Optional OutputAsLocalDate As Boolean = False) As String
+                            
     On Error GoTo utc_ErrorHandling
-
-    ConvertToIso = VBA.Format$(ConvertToUtc(utc_LocalDate), "yyyy-mm-ddTHH:mm:ss.000Z")
-
+    ConvertToIso = ConvertToISO8601Time(utc_LocalDate, False, False, True)
     Exit Function
 
 utc_ErrorHandling:
     Err.Raise 10014, "UtcConverter.ConvertToIso", "ISO 8601 conversion error: " & Err.Number & " - " & Err.Description
 End Function
 
+
+' Convert to ISOTimeStamp
+' Converts a provided date into an ISO8601 formatted string.
+' By default, assumes you pass in a local date and outputs a UTC date string.
+' Set isUTC to True if you already have the UTC date.
+' Set OutputLocalString to true if you want to output a localized timestamp string.
+' This would be useful for instance if you want to know the geographic region an
+' action was performed by a user.
+' Prior versions of this function did not convert if it was a date only.
+' This is no longer true, all dates and times are always localaized.
+' To revert back to that behavior, set ConvertDateOnly to False
+Public Function ConvertToISO8601Time(ByVal DateIn As Date _
+                                    , Optional isUTC As Boolean = False _
+                                    , Optional OutputLocalString As Boolean = False _
+                                    , Optional IncludeMilliseconds As Boolean = True) As String
+
+    Dim fStringBuffer As StringBufferCache
+  
+    Dim tBias As Long
+    Dim OutputDate As Date
+    Dim MSCount As Long
+
+    If (isUTC And Not OutputLocalString) Then
+        tBias = 0
+        ' Don't need to convert.
+        OutputDate = DateIn
+    ElseIf (isUTC And OutputLocalString) Then
+        ' Convert UTC to local
+        OutputDate = ConvertToLocalDate(DateIn)
+        tBias = VBA.DateDiff("n", OutputDate, DateIn)
+    ElseIf OutputLocalString Then
+        ' No conversi on needed; get bias.
+        OutputDate = DateIn
+        tBias = GetBiasForGivenLocalDate(OutputDate)
+    Else
+        OutputDate = ConvertToUtc(DateIn)
+        tBias = GetBiasForGivenLocalDate(OutputDate)
+    End If
+    
+    Dim tString_Buffer As StringBufferCache
+
+    String_BufferAppend tString_Buffer, VBA.Format(OutputDate, ISOTimeFormatStr)
+    
+    If IncludeMilliseconds Then
+        MSCount = GetMilliseconds(OutputDate)
+        String_BufferAppend tString_Buffer, "." & VBA.Format(MSCount, "000")
+    End If
+    
+    If OutputLocalString Then
+        String_BufferAppend tString_Buffer, ISOTimezoneOffset(tBias)
+    Else
+        String_BufferAppend tString_Buffer, ISO8601UTCTimeZone
+    End If
+
+    ConvertToISO8601Time = string_BufferToString(tString_Buffer)
+End Function
+
+
+' Provides a format string to other functions that complies with ISO8601
+Private Function ISOTimeFormatStr(Optional IncludeMilliseconds As Boolean = False _
+                                , Optional includeTimeZone As Boolean = False) As String
+    Dim tString_Buffer As StringBufferCache
+
+    String_BufferAppend tString_Buffer, "yyyy-mm-ddTHH:mm:ss"
+    If IncludeMilliseconds Then String_BufferAppend tString_Buffer, ".000"
+    If includeTimeZone Then String_BufferAppend tString_Buffer, ISOTimezoneOffset
+    ISOTimeFormatStr = string_BufferToString(tString_Buffer)
+End Function
 
 
 Private Function RoundUp(ByVal value As Double) As Long
@@ -520,7 +588,8 @@ End Function
 
 #If Mac Then
 
-Private Function utc_ConvertDate(utc_Value As Date, Optional utc_ConvertToUtc As Boolean = False) As Date
+Private Function utc_ConvertDate(utc_Value As Double _
+                                , Optional utc_ConvertToUtc As Boolean = False) As Date
     Dim utc_ShellCommand As String
     Dim utc_Result As utc_ShellResult
     Dim utc_Parts() As String
@@ -553,6 +622,7 @@ End Function
 
 Private Function utc_ExecuteInShell(utc_ShellCommand As String) As utc_ShellResult
 #If VBA7 Then
+    ' 64bit Mac
     Dim utc_File As LongPtr
     Dim utc_Read As LongPtr
 #Else
@@ -569,9 +639,9 @@ Private Function utc_ExecuteInShell(utc_ShellCommand As String) As utc_ShellResu
 
     Do While utc_feof(utc_File) = 0
         utc_Chunk = VBA.Space$(50)
-        utc_Read = CLng(utc_fread(utc_Chunk, 1, Len(utc_Chunk) - 1, utc_File))
+        utc_Read = VBA.CLng(utc_fread(utc_Chunk, 1, VBA.Len(utc_Chunk) - 1, utc_File))
         If utc_Read > 0 Then
-            utc_Chunk = VBA.Left$(utc_Chunk, CLng(utc_Read))
+            utc_Chunk = VBA.Left$(utc_Chunk, VBA.CLng(utc_Read))
             utc_ExecuteInShell.utc_Output = utc_ExecuteInShell.utc_Output & utc_Chunk
         End If
     Loop
@@ -581,20 +651,333 @@ utc_ErrorHandling:
 End Function
 
 #Else
+' Windows
 
-Private Function utc_DateToSystemTime(utc_Value As Date) As utc_SYSTEMTIME
-    utc_DateToSystemTime.utc_wYear = VBA.Year(utc_Value)
-    utc_DateToSystemTime.utc_wMonth = VBA.Month(utc_Value)
-    utc_DateToSystemTime.utc_wDay = VBA.Day(utc_Value)
-    utc_DateToSystemTime.utc_wHour = VBA.Hour(utc_Value)
-    utc_DateToSystemTime.utc_wMinute = VBA.Minute(utc_Value)
-    utc_DateToSystemTime.utc_wSecond = VBA.Second(utc_Value)
-    utc_DateToSystemTime.utc_wMilliseconds = 0
+' Pass in a date, this will return a Windows SystemTime structure with millisecond accuracy.
+Private Function utc_DateToSystemTime(ByRef utc_Value As Date) As utc_SYSTEMTIME ' "Helper Functions
+    With utc_DateToSystemTime
+        .utc_wYear = VBA.Year(utc_Value)
+        .utc_wMonth = VBA.Month(utc_Value)
+        .utc_wDay = VBA.Day(utc_Value)
+        .utc_wHour = VBA.Hour(utc_Value)
+        .utc_wMinute = VBA.Minute(utc_Value)
+        .utc_wMilliseconds = GetMilliseconds(utc_Value)
+        If .utc_wMilliseconds >= 500 Then
+            .utc_wSecond = VBA.Second(utc_Value) - 1
+        Else
+            .utc_wSecond = VBA.Second(utc_Value)
+        End If
+    End With
 End Function
 
-Private Function utc_SystemTimeToDate(utc_Value As utc_SYSTEMTIME) As Date
-    utc_SystemTimeToDate = DateSerial(utc_Value.utc_wYear, utc_Value.utc_wMonth, utc_Value.utc_wDay) + _
-        TimeSerial(utc_Value.utc_wHour, utc_Value.utc_wMinute, utc_Value.utc_wSecond)
+
+Private Function utc_SystemTimeToDate(ByRef utc_Value As utc_SYSTEMTIME) As Date ' "Helper Function" for Public Functions (below)
+    utc_SystemTimeToDate = DateSerial(utc_Value.utc_wYear _
+                                    , utc_Value.utc_wMonth _
+                                    , utc_Value.utc_wDay) + _
+                            TimeSerialDbl(utc_Value.utc_wHour _
+                                        , utc_Value.utc_wMinute _
+                                        , utc_Value.utc_wSecond _
+                                        , utc_Value.utc_wMilliseconds)
 End Function
 
+
+Private Function ConvDateUTC(ByVal InVal As String) As Date
+    Dim RetVal As Variant
+    
+'    Dim RegEx As Object
+'    Set RegEx = CreateObject("VBScript.RegExp")
+    Dim RegEx As New RegExp
+    With RegEx
+        .Global = True
+        .Multiline = True
+        .IgnoreCase = False
+    End With
+    
+    RegEx.Pattern = "^(\d{4})-?(\d{2})?-?(\d{1,2})?$|^(\d{4})-?W(\d{2})?-?(\d)?$|^(\d{4})-?(\d{3})$"
+    Dim Match As Object
+    Set Match = RegEx.Execute(InVal)
+    
+    If Match.Count <> 1 Then Exit Function
+    With Match(0)
+        If Not IsEmpty(.SubMatches(0)) Then
+            'YYYY-MM-DD
+            If IsEmpty(.SubMatches(1)) Then  'YYYY
+                RetVal = DateSerial(CInt(.SubMatches(0)), 1, 1)
+            ElseIf IsEmpty(.SubMatches(2)) Then 'YYYY-MM
+                RetVal = DateSerial(CInt(.SubMatches(0)), CInt(.SubMatches(1)), 1)
+            Else 'YYYY-MM-DD or YYYY-MM-D
+                RetVal = DateSerial(CInt(.SubMatches(0)), CInt(.SubMatches(1)), CInt(.SubMatches(2)))
+            End If
+        ElseIf Not IsEmpty(.SubMatches(3)) Then
+            'YYYY-Www-D
+            RetVal = DateSerial(CInt(.SubMatches(3)), 1, 4) '4th of jan is always week 1
+            RetVal = RetVal - Weekday(RetVal, 2) 'subtract the weekday number of 4th of jan
+            RetVal = RetVal + 7 * (CInt(.SubMatches(4)) - 1) 'add 7 times the (weeknumber - 1)
+            
+            If IsEmpty(.SubMatches(5)) Then 'YYYY-Www
+                RetVal = RetVal + 1 'choose monday of that week
+            Else 'YYYY-Www-D
+                RetVal = RetVal + CInt(.SubMatches(5)) 'choose day of that week 1-7 monday to sunday
+            End If
+        Else
+            'YYYY-DDD
+            RetVal = DateSerial(CInt(.SubMatches(6)), 1, 1) + CInt(.SubMatches(7)) - 1
+        End If
+    End With
+    
+    ConvDateUTC = RetVal
+End Function
+
+Private Function ConvTimeUTC(ByRef InVal As String) As Date
+
+    Dim dblHours As Double
+    Dim dblMinutes As Double
+    Dim dblSeconds As Double
+    Dim dblMilliseconds As Double
+        
+    Dim RegEx As New RegExp ' Object
+    'Set RegEx = CreateObject("VBScript.RegExp")
+    
+    With RegEx
+        .Global = True
+        .Multiline = False
+        .IgnoreCase = False
+    End With
+
+    ' Allowing for hours,minutes, and seconds to have partial amounts per ISO8601 standard.
+    RegEx.Pattern = "^(\d{0,2}[\.\,]?\d*(?=[\+\-Z :]|$)):?(\d{0,2}[\.\,]?\d*(?=[\+\-Z :]|$))?:?(\d{0,2}[\.\,]?\d*(?=[\+\-Z :]|$))?(\+|\-|Z)?(\d{1,2})?:?(\d{1,2})?$"
+
+    Dim Match As Object
+    Set Match = RegEx.Execute(InVal)
+    
+    If Match.Count <> 1 Then Exit Function
+
+    With Match(0)
+        'hh:mm:ss.nnn detection
+        ' Load hours in, then detect if there's more to do.
+        dblHours = CDbl(NzEmpty(.SubMatches(0), 0))
+
+        If Not (IsEmpty(.SubMatches(3)) Or IsEmpty(.SubMatches(4)) Or NzEmpty(.SubMatches(3), ISO8601UTCTimeZone) = ISO8601UTCTimeZone) Then _
+            dblHours = dblHours - CDbl(NzEmpty(.SubMatches(3) & .SubMatches(4), vbNullString))
+        
+        dblMinutes = CDbl(NzEmpty(.SubMatches(1), vbNullString))
+        
+        If Not (IsEmpty(.SubMatches(3)) Or IsEmpty(.SubMatches(5)) Or NzEmpty(.SubMatches(3), ISO8601UTCTimeZone) = ISO8601UTCTimeZone) Then _
+            dblMinutes = dblMinutes - CDbl(NzEmpty(.SubMatches(3), vbNullString) & NzEmpty(.SubMatches(5), vbNullString))
+        
+        dblSeconds = CDbl(NzEmpty(.SubMatches(2), vbNullString))
+    End With
+    
+    ConvTimeUTC = TimeSerialDbl(dblHours, dblMinutes, dblSeconds)
+
+End Function
+
+Private Function NzEmpty(ByVal value As Variant, Optional ByVal value_when_null As Variant = 0) As Variant
+
+    Dim return_value As Variant
+    On Error Resume Next 'supress error handling
+
+    If IsEmpty(value) Or IsNull(value) Or (VarType(value) = vbString And value = vbNullString) Then
+        return_value = value_when_null
+    Else
+        return_value = value
+    End If
+
+    Err.Clear 'clear any errors that might have occurred
+    On Error GoTo 0 'reinstate error handling
+
+    NzEmpty = return_value
+
+End Function
 #End If
+
+
+' Will return a Date type Double (specified as Double because it makes VBA less likely to "help")
+Public Function TimeSerialDbl(ByVal HoursIn As Double _
+                            , ByVal MinutesIn As Double _
+                            , ByVal SecondsIn As Double _
+                            , Optional ByVal MillisecondsIn As Double = 0) As Double
+    Dim tMS As Double
+    Dim tSec As Double
+    Dim tSecTemp As Double
+    tSec = VBA.CDbl(RoundDown(SecondsIn))
+    tSecTemp = SecondsIn - tSec
+    tMS = (tSecTemp * (TotalMillisecondsInDay / TotalSecondsInDay)) \ 1
+    tMS = tMS + MillisecondsIn
+    If (tSecTemp > 0.5) Then tSec = tSec - 1
+    If tMS = 500 Then tMS = tMS - 0.001 ' Shave a hair, because otherwise it'll round up too much.
+    TimeSerialDbl = (HoursIn / TotalHoursInDay) + (MinutesIn / TotalMinutesInDay) + CDbl((tSec / TotalSecondsInDay)) + (tMS / TotalMillisecondsInDay)
+End Function
+
+' If given a time double, will return the millisecond portion of the time.
+Private Function GetMilliseconds(ByVal TimeIn As Double) As Variant
+    Dim IntDatePart As Long
+    Dim DblTimePart As Double
+    Dim LngSeconds As Long ' Used to remove whole seconds.
+    Dim DblSecondsPart As Double
+    
+    Dim DblMS As Double
+    Dim MSCount As Double
+        
+    ' Get rid of the date portion
+    ' There is an annoying bug where VBA rounds up in certain cases when
+    ' using the \ operator and dividing by 1. So, divide by 2 and double it.
+    ' this side steps the bug and ensures it always rounds down.
+    IntDatePart = RoundDown(TimeIn)
+    DblTimePart = TimeIn - IntDatePart
+    
+    LngSeconds = RoundDown(TotalSecondsInDay * DblTimePart)
+    DblSecondsPart = LngSeconds / TotalSecondsInDay
+    DblMS = DblTimePart - DblSecondsPart
+    MSCount = ((DblMS * (TotalMillisecondsInDay))) \ 1
+    If MSCount >= 1000 Then MSCount = 0
+    GetMilliseconds = MSCount
+End Function
+
+
+Public Function CurrentLocalBiasFromUTC(Optional ByVal OutputAsHours As Boolean = False) As Long
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' This returns the CURRENT amount of time in minutes (if OutputAsHours is omitted or
+' false) or hours (if OutputAsHours is True) that should be added (or subtracted) to the
+' local time to get UTC. It should (untested on Mac as of yet) return the value
+' adjusted for DST if active.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    Dim tBias As Long
+
+#If Mac Then
+    ' While we could do this for the Windows version, too, the Windows functions are rock solid and
+    ' work (these work, too), and are certain to get the correct data. I'm reasonably sure these
+    ' work now, but don't have a Mac to test.
+    tBias = GetBiasForGivenLocalDate(VBA.Now(), OutputAsHours)
+#Else
+    Dim TZI As utc_TIME_ZONE_INFORMATION
+    Dim DST As TIME_ZONE
+    DST = utc_GetTimeZoneInformation(TZI)
+
+    If DST = TIME_ZONE_DAYLIGHT Then
+        tBias = TZI.utc_Bias + TZI.utc_DaylightBias
+    Else
+        tBias = TZI.utc_Bias + TZI.utc_StandardBias
+    End If
+    
+    If OutputAsHours Then tBias = tBias / 60 ' This is already done in GetBiasForGivenLocalDate for Mac.
+#End If
+
+    CurrentLocalBiasFromUTC = tBias
+
+End Function
+
+Public Function CurrentISOTimezoneOffset() As String
+    CurrentISOTimezoneOffset = ISOTimezoneOffset(CurrentLocalBiasFromUTC)
+End Function
+
+
+Public Function GetBiasForGivenLocalDate(ByVal LocalDateIn As Date _
+                                        , Optional ByVal OutputAsHours As Boolean = False) As Long
+    Dim DateUTCNow As Date
+    
+    DateUTCNow = ConvertToUtc(LocalDateIn)
+
+    ' I tried to get fancy here and retrieve the bias from the OS, but that turned into a huge amount of work.
+    ' unless your time zone is defined by change on a specific day, this is far simpler and easier
+    ' than chasing week numbers around.
+    If Not OutputAsHours Then
+        GetBiasForGivenLocalDate = VBA.DateDiff("n", LocalDateIn, DateUTCNow)
+    Else
+        GetBiasForGivenLocalDate = VBA.DateDiff("h", LocalDateIn, DateUTCNow)
+    End If
+End Function
+
+Public Function ISOTimezoneOffsetOnDate(ByVal LocalDateIn As Date) As String
+    ISOTimezoneOffsetOnDate = ISOTimezoneOffset(GetBiasForGivenLocalDate(LocalDateIn))
+End Function
+
+
+' Provides the ISO Offset time from an input (or current offset if none is passed in) to build an ISO8601 output String
+Private Function ISOTimezoneOffset(Optional TimeBias As Long = 0) As String
+
+    Dim strOffsetOut As String
+
+    Dim tString_Buffer As StringBufferCache
+
+    Dim OffsetLong As Long
+    Dim hourOffset As Long
+    Dim minOffset As Long
+    
+    ' Counterintuitively, the Bias is postive (time ahead), the offset is the negative value of bias.
+    OffsetLong = TimeBias * -1
+    
+    hourOffset = OffsetLong \ 60
+    minOffset = OffsetLong Mod 60
+    
+    If OffsetLong = 0 Then
+        ISOTimezoneOffset = ISO8601UTCTimeZone
+    Else
+        If OffsetLong > 0 Then String_BufferAppend tString_Buffer, "+"
+        String_BufferAppend tString_Buffer, VBA.CStr(VBA.Format(hourOffset, "00"))
+        String_BufferAppend tString_Buffer, ISO8601TimeDelimiter
+        String_BufferAppend tString_Buffer, VBA.CStr(VBA.Format(minOffset, "00"))
+        
+        ISOTimezoneOffset = string_BufferToString(tString_Buffer)
+    End If
+End Function
+
+
+' String_BufferAppend
+' Based on VBA-Tools\Jsonconverter's "json_BufferAppend" functions
+' To use, your calling routine needs to store the input variables to be handed back.
+Private Sub String_BufferAppend(ByRef StringBufferIn As StringBufferCache, _
+                              ByRef string_Append As Variant)
+    ' VBA can be slow to append strings due to allocating a new string for each append
+    ' Instead of using the traditional append, allocate a large empty string and then copy string at append position
+    '
+    ' Example:
+    ' Buffer: "abc  "
+    ' Append: "def"
+    ' Buffer Position: 3
+    ' Buffer Length: 5
+    '
+    ' Buffer position + Append length > Buffer length -> Append chunk of blank space to buffer
+    ' Buffer: "abc       "
+    ' Buffer Length: 10
+    '
+    ' Put "def" into buffer at position 3 (0-based)
+    ' Buffer: "abcdef    "
+    '
+    ' Approach based on cStringBuilder from vbAccelerator
+    ' http://www.vbaccelerator.com/home/VB/Code/Techniques/RunTime_Debug_Tracing/VB6_Tracer_Utility_zip_cStringBuilder_cls.asp
+    '
+    ' and clsStringAppend from Philip Swannell
+    ' https://github.com/VBA-tools/VBA-JSON/pull/82
+
+    Dim string_AppendLength As Long
+    Dim string_LengthPlusPosition As Long
+
+    string_AppendLength = VBA.Len(string_Append)
+    string_LengthPlusPosition = string_AppendLength + StringBufferIn.string_BufferPosition
+
+    If string_LengthPlusPosition > StringBufferIn.string_BufferLength Then
+        ' Appending would overflow buffer, add chunk
+        ' (double buffer length or append length, whichever is bigger)
+        Dim string_AddedLength As Long
+        string_AddedLength = IIf(string_AppendLength > StringBufferIn.string_BufferLength, string_AppendLength, StringBufferIn.string_BufferLength)
+
+        StringBufferIn.String_Buffer = StringBufferIn.String_Buffer & VBA.Space$(string_AddedLength)
+        StringBufferIn.string_BufferLength = StringBufferIn.string_BufferLength + string_AddedLength
+    End If
+
+    ' Note: Namespacing with VBA.Mid$ doesn't work properly here, throwing compile error:
+    ' Function call on left-hand side of assignment must return Variant or Object
+    If string_AppendLength > 0 Then
+        Mid$(StringBufferIn.String_Buffer, StringBufferIn.string_BufferPosition + 1, string_AppendLength) = CStr(string_Append)
+    End If
+    StringBufferIn.string_BufferPosition = StringBufferIn.string_BufferPosition + string_AppendLength
+End Sub
+
+Private Function string_BufferToString(ByRef StringBufferIn As StringBufferCache) As String
+    If StringBufferIn.string_BufferPosition > 0 Then
+        string_BufferToString = VBA.Left$(StringBufferIn.String_Buffer, StringBufferIn.string_BufferPosition)
+    End If
+End Function
+
