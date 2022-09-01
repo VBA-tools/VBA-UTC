@@ -484,6 +484,36 @@ utc_ErrorHandling:
     Err.Raise 10014, "UtcConverter.ConvertToIso", "ISO 8601 conversion error: " & Err.Number & " - " & Err.Description
 End Function
 
+
+
+Private Function RoundUp(ByVal value As Double) As Long
+    Dim lngVal As Long
+    Dim deltaValue As Double
+    
+    lngVal = VBA.CLng(value)
+    deltaValue = lngVal - value
+        
+    If deltaValue < 0 Then
+        RoundUp = lngVal + 1
+    Else
+        RoundUp = lngVal
+    End If
+End Function
+Private Function RoundDown(ByVal value As Double) As Long
+    Dim lngVal As Long
+    Dim deltaValue As Double
+    
+    lngVal = VBA.CLng(value)
+    deltaValue = lngVal - value
+        
+    If deltaValue <= 0 Then
+        RoundDown = lngVal
+    Else
+        RoundDown = lngVal - 1
+    End If
+End Function
+
+
 ' ============================================= '
 ' Private Functions
 ' ============================================= '
