@@ -33,9 +33,7 @@ Private Const ISO8601UTCTimeZone As String = "Z"
 
 
 #If Mac Then
-
 #If VBA7 Then
-
 ' 64-bit Mac (2016)
 Private Declare PtrSafe Function utc_popen Lib "/usr/lib/libc.dylib" Alias "popen" _
     (ByVal utc_Command As String, ByVal utc_Mode As String) As LongPtr
@@ -47,7 +45,6 @@ Private Declare PtrSafe Function utc_feof Lib "/usr/lib/libc.dylib" Alias "feof"
     (ByVal utc_File As LongPtr) As LongPtr
 
 #Else
-
 ' 32-bit Mac
 Private Declare Function utc_popen Lib "libc.dylib" Alias "popen" _
     (ByVal utc_Command As String, ByVal utc_Mode As String) As Long
@@ -59,7 +56,7 @@ Private Declare Function utc_feof Lib "libc.dylib" Alias "feof" _
     (ByVal utc_File As Long) As Long
 
 #End If
-
+' End of Mac
 #ElseIf VBA7 Then
 ' Windows VBA7
 
